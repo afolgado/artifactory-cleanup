@@ -151,7 +151,7 @@ class DeleteDockerImagesNotUsed(RuleForDocker):
         return self.set_paths_to_manifest_parent(result_artifact)
 
 
-class KeepLatestNVersionImagesByProperty(RuleForDocker):
+class KeepLatestNVersionImagesByProperty(Rule):
     r"""
     Leaves ``count`` Docker images with the same major.
     If you need to add minor then put 2 or if patch then put 3.
@@ -170,10 +170,6 @@ class KeepLatestNVersionImagesByProperty(RuleForDocker):
         self.custom_regexp = custom_regexp
         self.property = r"docker.manifest"
         self.number_of_digits_in_version = number_of_digits_in_version
-
-    def _aql_add_filter(self, aql_query_list):
-        aql_query_list.append(self.get_manifest_filter())
-        return aql_query_list
 
     def _filter_result(self, result_artifact):
         artifacts_by_path_and_name = defaultdict(list)
@@ -199,7 +195,7 @@ class KeepLatestNVersionImagesByProperty(RuleForDocker):
             for artifact in good_artifacts:
                 self.remove_artifact(artifact[1], result_artifact)
 
-        return self.set_paths_to_manifest_parent(result_artifact)
+        return result_artifact
 
 
 class DeleteDockerImageIfNotContainedInProperties(RuleForDocker):
