@@ -13,6 +13,7 @@ class RuleForDocker(Rule):
     """
     Parent class for Docker rules
     """
+    manifest_file = 'manifest.json'
 
     def get_docker_images_list(self, docker_repo):
         _href = "{}/api/docker/{}/v2/_catalog".format(
@@ -52,11 +53,18 @@ class RuleForDocker(Rule):
                 image = f"{artifact['path']}/{artifact['name']}"
                 artifact["size"] = images_dict[image]
 
-    @staticmethod
-    def set_paths_to_parent(result_artifact):
+    def get_manifest_filter(self):
+        return {
+            "name": {
+                "$eq": self.manifest_file,
+            }
+        }
+
+    def set_paths_to_manifest_parent(self, result_artifact):
         for artifact in result_artifact:
-            artifact["path"], docker_tag = artifact["path"].rsplit("/", 1)
-            artifact["name"] = docker_tag
+            if artifact["name"] == self.manifest_file:
+                artifact["path"], docker_tag = artifact["path"].rsplit("/", 1)
+                artifact["name"] = docker_tag
 
         return result_artifact
 
@@ -82,15 +90,13 @@ class DeleteDockerImagesOlderThan(RuleForDocker):
             "modified": {
                 "$lt": older_than_date_txt,
             },
-            "name": {
-                "$match": "manifest.json",
-            },
         }
         aql_query_list.append(update_dict)
+        aql_query_list.append(self.get_manifest_filter())
         return aql_query_list
 
     def _filter_result(self, result_artifact):
-        return self.set_paths_to_parent(result_artifact)
+        return self.set_paths_to_manifest_parent(result_artifact)
 
 
 class DeleteDockerImagesOlderThanNDaysWithoutDownloads(RuleForDocker):
@@ -104,19 +110,17 @@ class DeleteDockerImagesOlderThanNDaysWithoutDownloads(RuleForDocker):
     def _aql_add_filter(self, aql_query_list):
         last_day = self.today - self.days
         update_dict = {
-            "name": {
-                "$match": "manifest.json",
-            },
             "$and": [
                 {"stat.downloads": {"$eq": None}},
                 {"created": {"$lte": last_day.isoformat()}},
             ],
         }
         aql_query_list.append(update_dict)
+        aql_query_list.append(self.get_manifest_filter())
         return aql_query_list
 
     def _filter_result(self, result_artifact):
-        return self.set_paths_to_parent(result_artifact)
+        return self.set_paths_to_manifest_parent(result_artifact)
 
 
 class DeleteDockerImagesNotUsed(RuleForDocker):
@@ -129,9 +133,6 @@ class DeleteDockerImagesNotUsed(RuleForDocker):
         last_day = self.today - self.days
         print("Delete docker images not used from {}".format(last_day.isoformat()))
         update_dict = {
-            "name": {
-                "$match": "manifest.json",
-            },
             "$or": [
                 {"stat.downloaded": {"$lte": last_day.isoformat()}},
                 {
@@ -143,13 +144,14 @@ class DeleteDockerImagesNotUsed(RuleForDocker):
             ],
         }
         aql_query_list.append(update_dict)
+        aql_query_list.append(self.get_manifest_filter())
         return aql_query_list
 
     def _filter_result(self, result_artifact):
-        return self.set_paths_to_parent(result_artifact)
+        return self.set_paths_to_manifest_parent(result_artifact)
 
 
-class KeepLatestNVersionImagesByProperty(Rule):
+class KeepLatestNVersionImagesByProperty(RuleForDocker):
     r"""
     Leaves ``count`` Docker images with the same major.
     If you need to add minor then put 2 or if patch then put 3.
@@ -168,6 +170,10 @@ class KeepLatestNVersionImagesByProperty(Rule):
         self.custom_regexp = custom_regexp
         self.property = r"docker.manifest"
         self.number_of_digits_in_version = number_of_digits_in_version
+
+    def _aql_add_filter(self, aql_query_list):
+        aql_query_list.append(self.get_manifest_filter())
+        return aql_query_list
 
     def _filter_result(self, result_artifact):
         artifacts_by_path_and_name = defaultdict(list)
@@ -193,7 +199,7 @@ class KeepLatestNVersionImagesByProperty(Rule):
             for artifact in good_artifacts:
                 self.remove_artifact(artifact[1], result_artifact)
 
-        return result_artifact
+        return self.set_paths_to_manifest_parent(result_artifact)
 
 
 class DeleteDockerImageIfNotContainedInProperties(RuleForDocker):
