@@ -52,6 +52,14 @@ class RuleForDocker(Rule):
                 image = f"{artifact['path']}/{artifact['name']}"
                 artifact["size"] = images_dict[image]
 
+    @staticmethod
+    def set_paths_to_parent(result_artifact):
+        for artifact in result_artifact:
+            artifact["path"], docker_tag = artifact["path"].rsplit("/", 1)
+            artifact["name"] = docker_tag
+
+        return result_artifact
+
     def filter_result(self, result_artifacts):
         """Determines the size of deleted images"""
         new_result = super(RuleForDocker, self).filter_result(result_artifacts)
@@ -82,11 +90,7 @@ class DeleteDockerImagesOlderThan(RuleForDocker):
         return aql_query_list
 
     def _filter_result(self, result_artifact):
-        for artifact in result_artifact:
-            artifact["path"], docker_tag = artifact["path"].rsplit("/", 1)
-            artifact["name"] = docker_tag
-
-        return result_artifact
+        return self.set_paths_to_parent(result_artifact)
 
 
 class DeleteDockerImagesOlderThanNDaysWithoutDownloads(RuleForDocker):
@@ -112,11 +116,7 @@ class DeleteDockerImagesOlderThanNDaysWithoutDownloads(RuleForDocker):
         return aql_query_list
 
     def _filter_result(self, result_artifact):
-        for artifact in result_artifact:
-            artifact["path"], docker_tag = artifact["path"].rsplit("/", 1)
-            artifact["name"] = docker_tag
-
-        return result_artifact
+        return self.set_paths_to_parent(result_artifact)
 
 
 class DeleteDockerImagesNotUsed(RuleForDocker):
@@ -146,11 +146,7 @@ class DeleteDockerImagesNotUsed(RuleForDocker):
         return aql_query_list
 
     def _filter_result(self, result_artifact):
-        for artifact in result_artifact:
-            artifact["path"], docker_tag = artifact["path"].rsplit("/", 1)
-            artifact["name"] = docker_tag
-
-        return result_artifact
+        return self.set_paths_to_parent(result_artifact)
 
 
 class KeepLatestNVersionImagesByProperty(Rule):
